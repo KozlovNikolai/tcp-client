@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -16,46 +17,50 @@ const (
 )
 
 func main() {
+	packetSendPtr := flag.Uint("packet", 0, "Packet number to send")
+	flag.Parse()
+
 	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	err = ReadNWrite(conn)
+	err = ReadNWrite(int64(*packetSendPtr), conn)
 	if err != nil {
 		log.Printf("Alarm, %s", err.Error())
 	}
 
 }
 
-func ReadNWrite(conn net.Conn) error {
+func ReadNWrite(packetNuber int64, conn net.Conn) error {
 
 	msgs := msg.GetMsgs()
 
-	for i, msg := range msgs {
-		fmt.Printf("Packet %d, %X\n", i, msg)
+	fmt.Printf("Packet %d, %X\n", packetNuber, msgs[packetNuber])
 
-		_, write_err := conn.Write(msg)
-		if write_err != nil {
-			return fmt.Errorf("failed: %w", write_err)
-		}
-
-		buf, read_err := io.ReadAll(conn)
-		if read_err != nil {
-			return fmt.Errorf("failed: %w", read_err)
-		}
-
-		if len(buf) < 3 || buf[0] != 0x02 {
-			return fmt.Errorf("packet type or length error")
-		}
-
-		if getCRCfromBytes(msg) != getCRCfromBytes(buf) {
-			return fmt.Errorf("CRC error")
-		}
-		log.Println("CRC - ok")
+	_, write_err := conn.Write(msgs[packetNuber])
+	if write_err != nil {
+		return fmt.Errorf("failed: %w", write_err)
 	}
+
+	buf, read_err := io.ReadAll(conn)
+	if read_err != nil {
+		return fmt.Errorf("failed: %w", read_err)
+	}
+
+	if len(buf) < 3 || buf[0] != 0x02 {
+		return fmt.Errorf("packet type or length error")
+	}
+
+	if getCRCfromBytes(msgs[packetNuber]) != getCRCfromBytes(buf) {
+		return fmt.Errorf("CRC error")
+	}
+	log.Println("CRC - ok")
+
 	conn.(*net.TCPConn).CloseWrite()
 	return nil
 }
