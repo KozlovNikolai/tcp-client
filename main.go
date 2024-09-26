@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -44,24 +43,27 @@ func ReadNWrite(packetNuber int64, conn net.Conn) error {
 
 	_, write_err := conn.Write(msgs[packetNuber])
 	if write_err != nil {
-		return fmt.Errorf("failed: %w", write_err)
+		return fmt.Errorf("failed WRITE: %w", write_err)
 	}
 
-	buf, read_err := io.ReadAll(conn)
+	buf := make([]byte, 3)
+	// buf, read_err := io.ReadAll(conn)
+	_, read_err := conn.Read(buf)
 	if read_err != nil {
-		return fmt.Errorf("failed: %w", read_err)
+		return fmt.Errorf("failed READ: %w", read_err)
 	}
 
-	if len(buf) < 3 || buf[0] != 0x02 {
-		return fmt.Errorf("packet type or length error")
+	if len(buf) < 3 {
+		return fmt.Errorf("packet length error")
 	}
-
+	if buf[0] != 0x02 {
+		return fmt.Errorf("packet type  error")
+	}
 	if getCRCfromBytes(msgs[packetNuber]) != getCRCfromBytes(buf) {
 		return fmt.Errorf("CRC error")
 	}
 	log.Println("CRC - ok")
 
-	conn.(*net.TCPConn).CloseWrite()
 	return nil
 }
 
