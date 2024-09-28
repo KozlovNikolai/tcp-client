@@ -17,7 +17,10 @@ const (
 
 func main() {
 	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
+
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
