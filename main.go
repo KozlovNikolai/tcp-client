@@ -8,11 +8,12 @@ import (
 	"os"
 	"tcp-client/msg"
 	"tcp-client/pkg"
+	"time"
 )
 
 const (
 	CONN_HOST = "127.0.0.1"
-	CONN_PORT = "9018"
+	CONN_PORT = "8089"
 	CONN_TYPE = "tcp"
 )
 
@@ -37,13 +38,14 @@ func main() {
 	if err != nil {
 		log.Printf("Alarm ReadNWrite, %s", err.Error())
 	}
+
 	// time.Sleep(1 * time.Minute)
-	for {
-		err = listener(conn)
-		if err != nil {
-			log.Printf("Alarm listener, %s", err.Error())
-		}
-	}
+	// for {
+	// 	err = listener(conn)
+	// 	if err != nil {
+	// 		log.Printf("Alarm listener, %s", err.Error())
+	// 	}
+	// }
 }
 
 func ReadNWrite(conn net.Conn) error {
@@ -51,31 +53,37 @@ func ReadNWrite(conn net.Conn) error {
 	msgs := msg.GetMsgs()
 
 	for i, msg := range msgs {
-		var p Packet
-		raw := buildPacket(i, p, msg)
-		fmt.Printf("RAW %X\n", raw)
+		for {
+			var p Packet
+			raw := buildPacket(i, p, msg)
+			fmt.Printf("RAW %X\n", raw)
 
-		_, write_err := conn.Write(raw)
-		if write_err != nil {
-			return fmt.Errorf("failed WRITE: %w", write_err)
-		}
+			_, write_err := conn.Write(raw)
+			if write_err != nil {
+				return fmt.Errorf("failed WRITE: %w", write_err)
+			}
 
-		buf := make([]byte, 3)
-		_, read_err := conn.Read(buf)
-		if read_err != nil {
-			return fmt.Errorf("failed READ: %w", read_err)
-		}
+			buf := make([]byte, 3)
+			_, read_err := conn.Read(buf)
+			if read_err != nil {
+				return fmt.Errorf("failed READ: %w", read_err)
+			}
 
-		if len(buf) < 3 {
-			return fmt.Errorf("packet length error")
+			if len(buf) < 3 {
+				return fmt.Errorf("packet length error")
+			}
+			if buf[0] != 0x02 {
+				return fmt.Errorf("packet type  error")
+			}
+			if getCRCfromBytes(raw) != getCRCfromBytes(buf) {
+				return fmt.Errorf("CRC error")
+			}
+			log.Println("CRC - ok")
+			time.Sleep(2 * time.Second)
+			if i == 0 {
+				break
+			}
 		}
-		if buf[0] != 0x02 {
-			return fmt.Errorf("packet type  error")
-		}
-		if getCRCfromBytes(raw) != getCRCfromBytes(buf) {
-			return fmt.Errorf("CRC error")
-		}
-		log.Println("CRC - ok")
 	}
 	return nil
 }
